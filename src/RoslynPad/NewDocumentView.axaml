@@ -1,0 +1,80 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="RoslynPad.NewDocumentView"
+             xmlns:ui="using:RoslynPad.UI"
+             xmlns:local="clr-namespace:RoslynPad;assembly=RoslynPad"
+             xmlns:roslyn="clr-namespace:Microsoft.CodeAnalysis;assembly=Microsoft.CodeAnalysis"
+             x:DataType="ui:MainViewModel">
+  <UserControl.Styles>
+    <Style Selector="Button.card">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="{DynamicResource {x:Static local:ThemeDictionary.PanelBorder}}" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="28 20" />
+      <Setter Property="Width" Value="200" />
+    </Style>
+    <Style Selector="Button.card:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource {x:Static local:ThemeDictionary.ListHoverBackground}}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource {x:Static local:ThemeDictionary.FocusBorder}}" />
+    </Style>
+    <Style Selector="Button.card TextBlock.cardTitle">
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.card TextBlock.cardShortcut">
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="Foreground" Value="{DynamicResource {x:Static local:ThemeDictionary.DescriptionForeground}}" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
+    </Style>
+  </UserControl.Styles>
+  <StackPanel HorizontalAlignment="Center"
+              VerticalAlignment="Center"
+              Spacing="8">
+
+    <TextBlock Text="RoslynPad"
+               FontSize="32"
+               FontWeight="Light"
+               HorizontalAlignment="Center" />
+    <TextBlock Text="A cross-platform C# editor and playground"
+               FontSize="14"
+               Foreground="{DynamicResource {x:Static local:ThemeDictionary.DescriptionForeground}}"
+               HorizontalAlignment="Center"
+               Margin="0 0 0 24" />
+
+    <StackPanel Orientation="Horizontal"
+                Spacing="16"
+                HorizontalAlignment="Center">
+
+      <Button Classes="card"
+              Command="{Binding NewDocumentCommand}"
+              CommandParameter="{x:Static roslyn:SourceCodeKind.Regular}">
+        <StackPanel Spacing="10">
+          <Image Source="{StaticResource CsFile}"
+                 Width="48"
+                 Height="48" />
+          <TextBlock Classes="cardTitle"
+                     Text="New File-Based App" />
+          <TextBlock Classes="cardShortcut"
+                     Text="{OnPlatform Ctrl+N, macOS=⌘N}" />
+        </StackPanel>
+      </Button>
+
+      <Button Classes="card"
+              Command="{Binding NewDocumentCommand}"
+              CommandParameter="{x:Static roslyn:SourceCodeKind.Script}">
+        <StackPanel Spacing="10">
+          <Image Source="{StaticResource Script}"
+                 Width="48"
+                 Height="48" />
+          <TextBlock Classes="cardTitle"
+                     Text="New Script (Legacy)" />
+          <TextBlock Classes="cardShortcut"
+                     Text="{OnPlatform Ctrl+Shift+N, macOS=⌘⇧N}" />
+        </StackPanel>
+      </Button>
+
+    </StackPanel>
+  </StackPanel>
+</UserControl>

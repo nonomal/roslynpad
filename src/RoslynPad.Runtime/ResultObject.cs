@@ -93,7 +93,7 @@ internal class ResultObject
                     PopulateChildren(o, targetQuotas, members, headerPrefix);
                     var enumerable = new ResultObject(o, targetQuotas, headerPrefix);
                     enumerable.InitializeEnumerable(headerPrefix, e, targetQuotas);
-                    Children = (Children ?? Enumerable.Empty<ResultObject>()).Concat(new[] { enumerable }).ToList();
+                    Children = [.. Children ?? [], enumerable];
                 }
                 else
                 {
@@ -113,11 +113,13 @@ internal class ResultObject
         PopulateChildren(o, targetQuotas, GetMembers(type), headerPrefix);
     }
 
-    private static MemberInfo[] GetMembers(Type type) => ((IEnumerable<MemberInfo>)type.GetRuntimeProperties()
-        .Where(m => m.GetMethod?.IsPublic == true && !m.GetMethod.IsStatic))
-        .Concat(type.GetRuntimeFields().Where(m => m.IsPublic && !m.IsStatic))
-        .OrderBy(m => m.Name)
-        .ToArray();
+    private static MemberInfo[] GetMembers(Type type) =>
+    [
+        .. ((IEnumerable<MemberInfo>)type.GetRuntimeProperties()
+            .Where(m => m.GetMethod?.IsPublic == true && !m.GetMethod.IsStatic))
+            .Concat(type.GetRuntimeFields().Where(m => m.IsPublic && !m.IsStatic))
+            .OrderBy(m => m.Name)
+    ];
 
     private static IEnumerable? GetEnumerable(object o, Type type) =>
         o is IEnumerable e && !s_doNotTreatAsEnumerableTypeNames.Contains(type.Name) ? e : null;
@@ -317,10 +319,7 @@ internal class ResultObject
                 while (index < _quotas.MaxEnumerableLength && enumerator.MoveNext())
                 {
                     var item = new ResultObject(enumerator.Current, targetQuotas, $"[{index}]");
-                    if (item.Type == null)
-                    {
-                        item.Type = enumerableTypeName;
-                    }
+                    item.Type ??= enumerableTypeName;
                     items.Add(item);
                     ++index;
                 }
@@ -375,10 +374,13 @@ internal class ExceptionResultObject : ResultObject
     {
         Message = exception.Message;
 
+        // User code is the entry assembly in both modes; keying on the file name doesn't work
+        // across them (scripts compile with an empty source path, msbuild mode with Program.cs)
+        var entryAssembly = Assembly.GetEntryAssembly();
         var stackFrames = new StackTrace(exception, fNeedFileInfo: true).GetFrames() ?? [];
         foreach (var stackFrame in stackFrames)
         {
-            if (string.IsNullOrWhiteSpace(stackFrame.GetFileName()) &&
+            if (stackFrame.GetMethod()?.Module.Assembly == entryAssembly &&
                 stackFrame.GetFileLineNumber() is var lineNumber && lineNumber > 0)
             {
                 LineNumber = lineNumber;

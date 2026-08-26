@@ -1,0 +1,84 @@
+﻿using System.ComponentModel;
+using System.Text.Json.Nodes;
+using RoslynPad.Themes;
+
+namespace RoslynPad.UI;
+
+public interface IApplicationSettingsValues : INotifyPropertyChanged
+{
+    [Browsable(false)]
+    IList<KeyBinding>? KeyBindings { get; set; }
+
+    /// <summary>Roslyn global options persisted by <c>SettingsOptionPersister</c>, keyed by option config name.</summary>
+    [Browsable(false)]
+    JsonObject? Roslyn { get; set; }
+
+    [Browsable(false)]
+    string? LatestVersion { get; set; }
+
+    [Browsable(false)]
+    string? WindowBounds { get; set; }
+
+    [Browsable(false)]
+    string? DockLayout { get; set; }
+
+    [Browsable(false)]
+    string? WindowState { get; set; }
+
+    [Description("Font size for the code editor (8-72).")]
+    double EditorFontSize { get; set; }
+
+    [Description("Font family for the code editor. Separate multiple fonts with commas for fallback.")]
+    string EditorFontFamily { get; set; }
+
+    [Description("Font size for the results output panel.")]
+    double OutputFontSize { get; set; }
+
+    [Description("Custom path for storing documents. Leave empty to use the default RoslynPad folder.")]
+    string? DocumentPath { get; set; }
+
+    [Description("Search within file contents when searching documents.")]
+    bool SearchFileContents { get; set; }
+
+    [Description("Use regular expressions when searching documents.")]
+    bool SearchUsingRegex { get; set; }
+
+    [Description("Enable Release mode compilation for better performance.")]
+    bool OptimizeCompilation { get; set; }
+
+    [Description("Delay in milliseconds before running code in Live Mode.")]
+    int LiveModeDelayMs { get; set; }
+
+    [Description("Search documents as you type without pressing Enter.")]
+    bool SearchWhileTyping { get; set; }
+
+    [Description("Custom path to the .NET SDK root directory (e.g., '/usr/lib64/dotnet'). Leave empty for auto-detection.")]
+    string? SdkLocation { get; set; }
+
+    [Description("Default .NET SDK SDK version (e.g., '10.0.300').")]
+    string? DefaultPlatformName { get; set; }
+
+    [Description("Font size for the application window (optional).")]
+    double? WindowFontSize { get; set; }
+
+    [Description("Automatically format the document after uncommenting code.")]
+    bool FormatDocumentOnComment { get; set; }
+
+    [Description("When opening a C# file, rewrite legacy #r directives as file-based app directives (#:package, #:sdk).")]
+    bool MigrateReferenceDirectives { get; set; }
+
+    [Browsable(false)]
+    string EffectiveDocumentPath { get; }
+
+    [Description("Path to a custom VS Code theme file (.json).")]
+    string? CustomThemePath { get; set; }
+
+    [Description("Theme type when using a custom theme (Light or Dark).")]
+    ThemeType? CustomThemeType { get; set; }
+
+    [Description("Built-in theme to use (System, Light, or Dark).")]
+    BuiltInTheme BuiltInTheme { get; set; }
+
+    [Description("Default using directives for new documents. One per line.")]
+    string[]? DefaultUsings { get; set; }
+}

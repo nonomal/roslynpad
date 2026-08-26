@@ -1,0 +1,144 @@
+﻿<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="RoslynPad.App"
+             xmlns:rp="clr-namespace:RoslynPad;assembly=RoslynPad"
+             xmlns:codeAnalysis="clr-namespace:Microsoft.CodeAnalysis;assembly=Microsoft.CodeAnalysis"
+             xmlns:dialogHostAvalonia="clr-namespace:DialogHostAvalonia;assembly=DialogHost.Avalonia"
+             Name="RoslynPad">
+  <NativeMenu.Menu>
+    <NativeMenu>
+      <NativeMenuItem Header="Settings..." Click="OnSettingsClick"
+                      Gesture="Meta+OemComma" />
+    </NativeMenu>
+  </NativeMenu.Menu>
+  <Application.Styles>
+    <FluentTheme />
+    <DockFluentTheme />
+    <StyleInclude Source="/DockTheme.axaml" />
+    <StyleInclude Source="/ScrollBarTheme.axaml" />
+    <dialogHostAvalonia:DialogHostStyles />
+    <Style Selector="TextBlock.Title">
+      <Setter Property="FontSize" Value="16" />
+    </Style>
+
+    <!-- Flat icon buttons used in toolbars; hover/active colors follow the VS Code theme -->
+    <Style Selector="Button.tool, ToggleButton.tool">
+      <Setter Property="Focusable" Value="False" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Width" Value="26" />
+      <Setter Property="Height" Value="26" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.tool Image, ToggleButton.tool Image">
+      <Setter Property="Width" Value="16" />
+      <Setter Property="Height" Value="16" />
+    </Style>
+    <Style Selector="Button.tool:pointerover /template/ ContentPresenter#PART_ContentPresenter,
+                     ToggleButton.tool:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource {x:Static rp:ThemeDictionary.ToolbarHoverBackground}}" />
+    </Style>
+    <Style Selector="Button.tool:pressed /template/ ContentPresenter#PART_ContentPresenter,
+                     ToggleButton.tool:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource {x:Static rp:ThemeDictionary.ToolbarActiveBackground}}" />
+    </Style>
+    <Style Selector="ToggleButton.tool:checked /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource {x:Static rp:ThemeDictionary.InputOptionActiveBackground}}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource {x:Static rp:ThemeDictionary.InputOptionActiveBorder}}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="ToggleButton.tool:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource {x:Static rp:ThemeDictionary.InputOptionActiveBackground}}" />
+    </Style>
+    <Style Selector="Button.tool:disabled, ToggleButton.tool:disabled">
+      <Setter Property="Opacity" Value="0.4" />
+    </Style>
+    <Style Selector="Button.tool:disabled /template/ ContentPresenter#PART_ContentPresenter,
+                     ToggleButton.tool:disabled /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+
+    <!-- Vertical separator between toolbar button groups -->
+    <Style Selector="Separator.toolbar">
+      <Setter Property="Width" Value="1" />
+      <Setter Property="Height" Value="16" />
+      <Setter Property="Margin" Value="5 0" />
+      <Setter Property="Background" Value="{DynamicResource {x:Static rp:ThemeDictionary.PanelBorder}}" />
+    </Style>
+
+    <!-- Map tree item selection/hover onto the VS Code list.* theme colors instead of the Fluent accent.
+         :focus-within reproduces VS Code's active (tree focused) vs. inactive (editor focused) selection. -->
+    <Style Selector="TreeViewItem /template/ Border#PART_LayoutRoot:pointerover">
+      <Setter Property="Background" Value="{DynamicResource {x:Static rp:ThemeDictionary.ListHoverBackground}}" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="TreeViewItem:selected /template/ Border#PART_LayoutRoot">
+      <Setter Property="Background" Value="{DynamicResource {x:Static rp:ThemeDictionary.ListInactiveSelectionBackground}}" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="TreeViewItem:selected /template/ Border#PART_LayoutRoot:pointerover">
+      <Setter Property="Background" Value="{DynamicResource {x:Static rp:ThemeDictionary.ListInactiveSelectionBackground}}" />
+    </Style>
+    <Style Selector="TreeView:focus-within TreeViewItem:selected /template/ Border#PART_LayoutRoot">
+      <Setter Property="Background" Value="{DynamicResource {x:Static rp:ThemeDictionary.ListActiveSelectionBackground}}" />
+    </Style>
+    <Style Selector="TreeView:focus-within TreeViewItem:selected /template/ Border#PART_LayoutRoot > ContentPresenter#PART_HeaderPresenter">
+      <Setter Property="Foreground" Value="{DynamicResource {x:Static rp:ThemeDictionary.ListActiveSelectionForeground}}" />
+    </Style>
+
+    <Style Selector="DataValidationErrors">
+      <Setter Property="Template">
+        <ControlTemplate>
+          <DockPanel LastChildFill="True">
+            <ContentControl DockPanel.Dock="Right"
+                            x:DataType="DataValidationErrors"
+                            ContentTemplate="{TemplateBinding ErrorTemplate}"
+                            DataContext="{TemplateBinding Owner}"
+                            Content="{Binding (DataValidationErrors.Errors)}"
+                            IsVisible="{Binding (DataValidationErrors.HasErrors)}"/>
+            <ContentPresenter Name="PART_ContentPresenter"
+                              Background="{TemplateBinding Background}"
+                              BorderBrush="{TemplateBinding BorderBrush}"
+                              BorderThickness="{TemplateBinding BorderThickness}"
+                              CornerRadius="{TemplateBinding CornerRadius}"
+                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                              Content="{TemplateBinding Content}"
+                              Padding="{TemplateBinding Padding}"/>
+          </DockPanel>
+        </ControlTemplate>
+      </Setter>
+      <Setter Property="ErrorTemplate">
+        <DataTemplate x:CompileBindings="false">
+          <Canvas Width="14" Height="14" Margin="4 0 1 0"
+                  Background="Transparent">
+            <Canvas.Styles>
+              <Style Selector="ToolTip">
+                <Setter Property="BorderBrush" Value="Red"/>
+              </Style>
+            </Canvas.Styles>
+            <ToolTip.Tip>
+              <ItemsControl ItemsSource="{Binding}"/>
+            </ToolTip.Tip>
+            <Path Data="M14,7 A7,7 0 0,0 0,7 M0,7 A7,7 0 1,0 14,7 M7,3l0,5 M7,9l0,2"
+                  Stroke="Red"
+                  StrokeThickness="2"/>
+          </Canvas>
+        </DataTemplate>
+      </Setter>
+    </Style>
+
+  </Application.Styles>
+  <Application.DataTemplates>
+
+    <DataTemplate DataType="Drawing">
+      <Image Source="{Binding Mode=OneTime}" />
+    </DataTemplate>
+
+    <DataTemplate DataType="codeAnalysis:Diagnostic">
+      <TextBlock Text="{Binding Descriptor.Title, Mode=OneTime}" />
+    </DataTemplate>
+  </Application.DataTemplates>
+</Application>

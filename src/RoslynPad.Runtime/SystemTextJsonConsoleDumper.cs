@@ -17,7 +17,7 @@ internal class JsonConsoleDumper : IConsoleDumper, IDisposable
 
     private readonly Stream _stream;
 
-    private readonly object _lock;
+    private readonly Lock _lock;
 
     private int _dumpCount;
 
@@ -25,7 +25,7 @@ internal class JsonConsoleDumper : IConsoleDumper, IDisposable
     {
         _stream = Console.OpenStandardOutput();
 
-        _lock = new object();
+        _lock = new Lock();
     }
 
     private Utf8JsonWriter CreateJsonWriter() => new(_stream);
@@ -47,7 +47,7 @@ internal class JsonConsoleDumper : IConsoleDumper, IDisposable
 
         try
         {
-            DumpResultObject(ResultObject.Create(data.Object, data.Quotas, data.Header, data.Line));
+            DumpResultObject(ResultObject.Create(data.Object, data.Quotas, data.Header, data.Line), data.EndsLine);
         }
         catch (Exception ex)
         {
@@ -184,7 +184,7 @@ internal class JsonConsoleDumper : IConsoleDumper, IDisposable
         }
     }
 
-    private void DumpResultObject(ResultObject result)
+    private void DumpResultObject(ResultObject result, bool? endsLine = null)
     {
         lock (_lock)
         {
@@ -192,7 +192,7 @@ internal class JsonConsoleDumper : IConsoleDumper, IDisposable
 
             using (var jsonWriter = CreateJsonWriter())
             {
-                WriteResultObject(jsonWriter, result);
+                WriteResultObject(jsonWriter, result, endsLine);
             }
 
             WriteNewLine();
@@ -201,12 +201,16 @@ internal class JsonConsoleDumper : IConsoleDumper, IDisposable
 
     private void WriteNewLine() => Write(s_newLine);
 
-    private void WriteResultObject(Utf8JsonWriter jsonWriter, ResultObject result)
+    private void WriteResultObject(Utf8JsonWriter jsonWriter, ResultObject result, bool? endsLine = null)
     {
         jsonWriter.WriteStartObject();
         try
         {
             WriteResultObjectContent(jsonWriter, result);
+            if (endsLine is { } endsLineValue)
+            {
+                jsonWriter.WriteBoolean("n", endsLineValue);
+            }
         }
         finally
         {

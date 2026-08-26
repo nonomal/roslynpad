@@ -1,21 +1,48 @@
 name: Build
 
-on: [push, pull_request]
+on:
+  push:
+    branches:
+    - main
+  pull_request:
+
+permissions:
+  contents: read
 
 jobs:
   build:
 
-    runs-on: windows-latest
-    
+    strategy:
+      matrix:
+        os: [windows-latest, macos-26, ubuntu-latest]
+
+    runs-on: ${{ matrix.os }}
+
     steps:
-    - uses: actions/checkout@v1
-    - name: Setup .NET Core
-      uses: actions/setup-dotnet@v1
+    - name: Enable long paths
+      if: matrix.os == 'windows-latest'
+      run: git config --global core.longpaths true
+    - uses: actions/checkout@v6
+      with:
+        submodules: true
+    - name: Setup .NET 10
+      uses: actions/setup-dotnet@v5
+      with:
+        dotnet-version: '10.0.x'
+    - name: Setup .NET (current)
+      uses: actions/setup-dotnet@v5
+      with:
+        dotnet-version: '11.0.x'
+    - name: Restore workloads
+      if: matrix.os == 'macos-26'
+      run: dotnet workload restore
     - name: Build with dotnet
-      run: dotnet build -bl -c Release -m:1 src/RoslynPad.sln
-    - uses: actions/upload-artifact@v2
+      env:
+        Registrar: ${{ matrix.os == 'macos-26' && 'dynamic' || '' }}
+      run: dotnet build -bl -c release -m:1
+    - uses: actions/upload-artifact@v7
       if: always()
       with:
-        name: logs
+        name: logs-${{ matrix.os }}
         path: |
           **/*.binlog

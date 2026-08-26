@@ -1,3 +1,4 @@
 {
-    "dotnet.defaultSolution": "src/RoslynPad.Avalonia.sln"
+    "dotnet.defaultSolution": "RoslynPad.slnx",
+    "omnisharp.projectFilesExcludePattern": "/vendor/roslyn/**,**/node_modules/**,**/.git/**"
 }

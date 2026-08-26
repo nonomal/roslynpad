@@ -1,0 +1,408 @@
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Host;
+using Microsoft.VisualStudio.Composition;
+using Morgania.CodeAnalysis.Editor;
+using System.Collections.Concurrent;
+using System.Collections.Immutable;
+using System.Reflection;
+using System.Runtime.InteropServices;
+using AnalyzerReference = Microsoft.CodeAnalysis.Diagnostics.AnalyzerReference;
+using AnalyzerFileReference = Microsoft.CodeAnalysis.Diagnostics.AnalyzerFileReference;
+using Microsoft.CodeAnalysis.Text;
+
+namespace RoslynPad.Roslyn;
+
+public class RoslynHost : IRoslynHost, IDisposable
+{
+    internal static readonly ImmutableArray<string> PreprocessorSymbols =
+        ["TRACE", "DEBUG"];
+
+    private readonly ConcurrentDictionary<DocumentId, RoslynWorkspace> _workspaces;
+    private readonly IDocumentationProviderService _documentationProviderService;
+    private readonly ImmutableArray<FileSystemWatcher> _analyzerConfigWatchers;
+
+    /// <summary>
+    /// The single VS-MEF graph shared by Roslyn and the editor, built by
+    /// <see cref="EditorComposition"/>.
+    /// </summary>
+    public ExportProvider ExportProvider { get; }
+
+    public HostServices HostServices { get; }
+    public ParseOptions ParseOptions { get; }
+    public ImmutableArray<MetadataReference> DefaultReferences { get; }
+    public ImmutableArray<string> DefaultImports { get; }
+    public ImmutableArray<string> AnalyzerConfigFiles { get; }
+
+    public RoslynHost(IEnumerable<Assembly>? additionalAssemblies = null,
+        RoslynHostReferences? references = null,
+        ImmutableArray<string>? analyzerConfigFiles = null)
+    {
+        references ??= RoslynHostReferences.Empty;
+
+        _workspaces = [];
+
+        ExportProvider = EditorComposition.CreateConfiguration(additionalAssemblies)
+            .CreateExportProviderFactory()
+            .CreateExportProvider();
+
+        HostServices = MorganiaMefHostServices.Create(ExportProvider);
+
+        ParseOptions = CreateDefaultParseOptions();
+
+        _documentationProviderService = GetService<IDocumentationProviderService>();
+
+        DefaultReferences = references.GetReferences(DocumentationProviderFactory);
+        DefaultImports = references.Imports;
+
+        AnalyzerConfigFiles = analyzerConfigFiles ?? [];
+
+        _analyzerConfigWatchers = CreateAnalyzerConfigWatchers();
+    }
+
+    public void Dispose()
+    {
+        foreach (var watcher in _analyzerConfigWatchers)
+        {
+            watcher.Dispose();
+        }
+    }
+
+    private ImmutableArray<FileSystemWatcher> CreateAnalyzerConfigWatchers()
+    {
+        return [.. AnalyzerConfigFiles
+            .Select(Path.GetDirectoryName)
+            .OfType<string>()
+            .Distinct()
+            .Where(Directory.Exists)
+            .Select(CreateWatcher)];
+
+        FileSystemWatcher CreateWatcher(string directory)
+        {
+            var watcher = new FileSystemWatcher(directory);
+            watcher.Changed += OnAnalyzerConfigFileEvent;
+            watcher.Created += OnAnalyzerConfigFileEvent;
+            watcher.Deleted += OnAnalyzerConfigFileEvent;
+            watcher.Renamed += OnAnalyzerConfigFileEvent;
+            watcher.EnableRaisingEvents = true;
+            return watcher;
+        }
+    }
+
+    private void OnAnalyzerConfigFileEvent(object sender, FileSystemEventArgs e)
+    {
+        if (AnalyzerConfigFiles.Any(file =>
+            string.Equals(file, e.FullPath, StringComparison.OrdinalIgnoreCase) ||
+            (e is RenamedEventArgs renamed && string.Equals(file, renamed.OldFullPath, StringComparison.OrdinalIgnoreCase))))
+        {
+            RefreshAnalyzerConfigDocuments();
+        }
+    }
+
+    /// <summary>
+    /// Re-reads the analyzer config files into all live workspaces (the same text-loader push
+    /// VS/LSP hosts do), so editorconfig options take effect on open documents.
+    /// </summary>
+    private void RefreshAnalyzerConfigDocuments()
+    {
+        foreach (var workspace in _workspaces.Values.Distinct())
+        {
+            foreach (var project in workspace.CurrentSolution.Projects)
+            {
+                foreach (var file in AnalyzerConfigFiles)
+                {
+                    var document = project.AnalyzerConfigDocuments.FirstOrDefault(d =>
+                        string.Equals(d.FilePath, file, StringComparison.OrdinalIgnoreCase));
+
+                    if (document is not null)
+                    {
+                        if (File.Exists(file))
+                        {
+                            workspace.OnAnalyzerConfigDocumentTextLoaderChanged(document.Id, new FileTextLoader(file, defaultEncoding: null));
+                        }
+                        else
+                        {
+                            workspace.OnAnalyzerConfigDocumentRemoved(document.Id);
+                        }
+                    }
+                    else if (File.Exists(file))
+                    {
+                        workspace.OnAnalyzerConfigDocumentAdded(CreateAnalyzerConfigDocumentInfo(file, project.Id));
+                    }
+                }
+            }
+        }
+    }
+
+    private static DocumentInfo CreateAnalyzerConfigDocumentInfo(string file, ProjectId projectId) => DocumentInfo.Create(
+        DocumentId.CreateNewId(projectId, debugName: file),
+        name: file,
+        loader: new FileTextLoader(file, defaultEncoding: null),
+        filePath: file);
+
+    public Func<string, DocumentationProvider> DocumentationProviderFactory => _documentationProviderService.GetDocumentationProvider;
+
+    protected virtual ParseOptions CreateDefaultParseOptions() => new CSharpParseOptions(
+        preprocessorSymbols: PreprocessorSymbols,
+        languageVersion: LanguageVersion.Preview)
+        .WithFeatures([
+            new(nameof(CSharpParseOptions.FileBasedProgram), bool.TrueString),
+            new("updated-memory-safety-rules", bool.TrueString)
+        ]);
+
+    public MetadataReference CreateMetadataReference(string location) => MetadataReference.CreateFromFile(location,
+        documentation: _documentationProviderService.GetDocumentationProvider(location));
+
+    public Project ApplyCommandLineArguments(Project project, IEnumerable<string> arguments, string baseDirectory)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        ArgumentNullException.ThrowIfNull(arguments);
+        ArgumentException.ThrowIfNullOrEmpty(baseDirectory);
+
+        var parser = project.Solution.Workspace.Services
+            .GetLanguageServices(LanguageNames.CSharp)
+            .GetRequiredService<ICommandLineParserService>();
+        var parsedArguments = parser.Parse(arguments, baseDirectory, isInteractive: false, RuntimeEnvironment.GetRuntimeDirectory());
+
+        var currentParseOptions = (CSharpParseOptions)project.ParseOptions!;
+        var parsedParseOptions = (CSharpParseOptions)parsedArguments.ParseOptions;
+        var hostFeatures = currentParseOptions.Features
+            .Where(feature => !parsedParseOptions.Features.ContainsKey(feature.Key));
+        parsedParseOptions = parsedParseOptions
+            .WithKind(currentParseOptions.Kind)
+            .WithDocumentationMode(DocumentationMode.Parse)
+            .WithFeatures(parsedParseOptions.Features.Concat(hostFeatures));
+
+        var currentCompilationOptions = (CSharpCompilationOptions)project.CompilationOptions!;
+        var parsedCompilationOptions = (CSharpCompilationOptions)parsedArguments.CompilationOptions;
+        parsedCompilationOptions = parsedCompilationOptions
+            .WithUsings(currentCompilationOptions.Usings)
+            .WithSourceReferenceResolver(currentCompilationOptions.SourceReferenceResolver)
+            .WithMetadataReferenceResolver(currentCompilationOptions.MetadataReferenceResolver)
+            .WithXmlReferenceResolver(currentCompilationOptions.XmlReferenceResolver);
+
+        return project
+            .WithParseOptions(parsedParseOptions)
+            .WithCompilationOptions(parsedCompilationOptions);
+    }
+
+    public TService GetService<TService>() => ExportProvider.GetExportedValue<TService>()!;
+    public TService GetWorkspaceService<TService>(DocumentId documentId) where TService : IWorkspaceService =>
+        _workspaces[documentId].Services.GetRequiredService<TService>();
+
+    protected internal virtual void AddMetadataReference(ProjectId projectId, AssemblyIdentity assemblyIdentity)
+    {
+    }
+
+    public void CloseWorkspace(RoslynWorkspace workspace)
+    {
+        ArgumentNullException.ThrowIfNull(workspace);
+
+        foreach (var documentId in workspace.CurrentSolution.Projects.SelectMany(p => p.DocumentIds))
+        {
+            _workspaces.TryRemove(documentId, out _);
+        }
+
+        workspace.Dispose();
+    }
+
+    public virtual RoslynWorkspace CreateWorkspace() => new(HostServices, roslynHost: this);
+
+    public void CloseDocument(DocumentId documentId)
+    {
+        ArgumentNullException.ThrowIfNull(documentId);
+
+        if (_workspaces.TryGetValue(documentId, out var workspace))
+        {
+            workspace.CloseDocument(documentId);
+
+            var document = workspace.CurrentSolution.GetDocument(documentId);
+
+            if (document != null)
+            {
+                var solution = document.Project.RemoveDocument(documentId).Solution;
+
+                if (!solution.Projects.SelectMany(d => d.DocumentIds).Any())
+                {
+                    if (_workspaces.TryRemove(documentId, out workspace))
+                    {
+                        workspace.Dispose();
+                    }
+                }
+                else
+                {
+                    workspace.SetCurrentSolution(solution);
+                }
+            }
+        }
+    }
+
+    public Document? GetDocument(DocumentId documentId)
+    {
+        ArgumentNullException.ThrowIfNull(documentId);
+
+        return _workspaces.TryGetValue(documentId, out var workspace)
+            ? workspace.CurrentSolution.GetDocument(documentId)
+            : null;
+    }
+
+    public DocumentId AddDocument(DocumentCreationArgs args)
+    {
+        ArgumentNullException.ThrowIfNull(args);
+
+        return AddDocument(CreateWorkspace(), args);
+    }
+
+    public DocumentId AddRelatedDocument(DocumentId relatedDocumentId, DocumentCreationArgs args, bool addProjectReference = true)
+    {
+        ArgumentNullException.ThrowIfNull(args);
+
+        if (!_workspaces.TryGetValue(relatedDocumentId, out var workspace))
+        {
+            throw new ArgumentException("Unable to locate the document's workspace", nameof(relatedDocumentId));
+        }
+
+        var documentId = AddDocument(workspace, args,
+            addProjectReference ? workspace.CurrentSolution.GetDocument(relatedDocumentId) : null);
+
+        return documentId;
+    }
+
+    private DocumentId AddDocument(RoslynWorkspace workspace, DocumentCreationArgs args, Document? previousDocument = null)
+    {
+        var solution = workspace.CurrentSolution;
+
+        if (previousDocument == null)
+        {
+            solution = solution.AddAnalyzerReferences(GetSolutionAnalyzerReferences());
+        }
+
+        var project = CreateProject(solution, args,
+            CreateCompilationOptions(args, previousDocument == null), previousDocument?.Project);
+        var document = CreateDocument(project, args);
+        var documentId = document.Id;
+
+        workspace.SetCurrentSolution(document.Project.Solution);
+        workspace.OpenDocument(documentId, args.SourceTextContainer);
+
+        _workspaces.TryAdd(documentId, workspace);
+
+        var onTextUpdated = args.OnTextUpdated;
+        if (onTextUpdated != null)
+        {
+            workspace.ApplyingTextChange += OnTextUpdated;
+        }
+
+        return documentId;
+
+        void OnTextUpdated(DocumentId id, SourceText sourceText)
+        {
+            if (documentId == id)
+            {
+                onTextUpdated?.Invoke(sourceText);
+            }
+        }
+    }
+
+    protected virtual IEnumerable<AnalyzerReference> GetSolutionAnalyzerReferences()
+    {
+        var loader = GetService<IAnalyzerAssemblyLoader>();
+        yield return new AnalyzerFileReference(MetadataUtil.GetAssemblyPath(typeof(Compilation).Assembly), loader);
+        yield return new AnalyzerFileReference(MetadataUtil.GetAssemblyPath(typeof(CSharpResources).Assembly), loader);
+        yield return new AnalyzerFileReference(MetadataUtil.GetAssemblyPath(typeof(FeaturesResources).Assembly), loader);
+        yield return new AnalyzerFileReference(MetadataUtil.GetAssemblyPath(typeof(CSharpFeaturesResources).Assembly), loader);
+    }
+
+    public void UpdateDocument(Document document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+
+        if (!_workspaces.TryGetValue(document.Id, out var workspace))
+        {
+            return;
+        }
+
+        workspace.TryApplyChanges(document.Project.Solution);
+    }
+
+    public void UpdateProjectFromBuild(Document document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+
+        if (!_workspaces.TryGetValue(document.Id, out var workspace))
+        {
+            return;
+        }
+
+        workspace.SetCurrentProject(document.Project);
+    }
+
+    protected virtual CompilationOptions CreateCompilationOptions(DocumentCreationArgs args, bool addDefaultImports)
+    {
+        var compilationOptions = new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary,
+            usings: addDefaultImports ? DefaultImports : [],
+            allowUnsafe: true,
+            sourceReferenceResolver: new SourceFileResolver([], args.WorkingDirectory),
+            // all #r references are resolved by the editor/msbuild
+            metadataReferenceResolver: DummyScriptMetadataResolver.Instance,
+            nullableContextOptions: NullableContextOptions.Enable);
+        return compilationOptions;
+    }
+
+    protected virtual Document CreateDocument(Project project, DocumentCreationArgs args)
+    {
+        var id = DocumentId.CreateNewId(project.Id);
+        var solution = project.Solution.AddDocument(id, args.Name ?? project.Name, args.SourceTextContainer.CurrentText);
+        return solution.GetDocument(id)!;
+    }
+
+    protected virtual Project CreateProject(Solution solution, DocumentCreationArgs args, CompilationOptions compilationOptions, Project? previousProject = null)
+    {
+        var name = args.Name ?? "New";
+        var path = Path.Combine(args.WorkingDirectory, name);
+        var id = ProjectId.CreateNewId(name);
+
+        var parseOptions = ParseOptions.WithKind(args.SourceCodeKind);
+        var isScript = args.SourceCodeKind == SourceCodeKind.Script;
+
+        if (isScript)
+        {
+            compilationOptions = compilationOptions.WithScriptClassName(name);
+        }
+
+        var analyzerConfigDocuments = AnalyzerConfigFiles.Where(File.Exists).Select(file => CreateAnalyzerConfigDocumentInfo(file, id));
+
+        solution = solution.AddProject(ProjectInfo.Create(
+            id,
+            VersionStamp.Create(),
+            name,
+            name,
+            LanguageNames.CSharp,
+            filePath: path,
+            isSubmission: isScript,
+            parseOptions: parseOptions,
+            compilationOptions: compilationOptions,
+            metadataReferences: previousProject != null ? [] : DefaultReferences,
+            projectReferences: previousProject != null ? new[] { new ProjectReference(previousProject.Id) } : null)
+            .WithAnalyzerConfigDocuments(analyzerConfigDocuments));
+
+        var project = solution.GetProject(id)!;
+
+        if (!isScript && GetUsings(project) is { Length: > 0 } usings)
+        {
+            project = project.AddDocument("RoslynPadGeneratedUsings", usings).Project;
+        }
+
+        return project;
+
+        static string GetUsings(Project project)
+        {
+            if (project.CompilationOptions is CSharpCompilationOptions options)
+            {
+                return string.Join(" ", options.Usings.Select(i => $"global using {i};"));
+            }
+
+            return string.Empty;
+        }
+    }
+}

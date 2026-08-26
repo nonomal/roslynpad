@@ -71,6 +71,9 @@ internal class VsCodeColorRegistry : IColorRegistry
         RegisterColor("editorHint.foreground", new ColorDefaults(Dark: Transparent("#eeeeee", 0.7), Light: "#6c6c6c"));
         var editorBackground = RegisterColor("editor.background", new ColorDefaults(Light: "#ffffff", Dark: "#1E1E1E"));
         RegisterColor("editor.foreground", new ColorDefaults(Light: "#333333", Dark: "#BBBBBB"));
+        var editorWhitespaceForeground = RegisterColor("editorWhitespace.foreground", new ColorDefaults(Dark: "#e3e4e229", Light: "#33333333"));
+        var editorIndentGuideBackground = RegisterColor("editorIndentGuide.background", editorWhitespaceForeground);
+        RegisterColor("editorIndentGuide.background1", editorIndentGuideBackground);
 
         var editorWidgetBackground = RegisterColor("editorWidget.background", new ColorDefaults(Dark: "#252526", Light: "#F3F3F3"));
         var editorWidgetForeground = RegisterColor("editorWidget.foreground", new ColorDefaults(Dark: foreground, Light: foreground));
@@ -170,6 +173,9 @@ internal class VsCodeColorRegistry : IColorRegistry
 
         var tabActiveModifiedBorder = RegisterColor("tab.activeModifiedBorder", new ColorDefaults(Dark: "#3399CC", Light: "#33AAEE"));
         var editorGroupDropBackground = RegisterColor("editorGroup.dropBackground", new ColorDefaults(Dark: Color.FromHex("#53595D").Transparent(0.5), Light: Color.FromHex("#2677CB").Transparent(0.18)));
+        RegisterColor("editorGroup.border", new ColorDefaults(Dark: "#444444", Light: "#E7E7E7"));
+        RegisterColor("editorGroupHeader.tabsBackground", new ColorDefaults(Dark: "#252526", Light: "#F3F3F3"));
+        RegisterColor("sash.hoverBorder", focusBorder);
 
         var tabInactiveModifiedBorder = RegisterColor("tab.inactiveModifiedBorder", new ColorDefaults(Dark: Transparent(tabActiveModifiedBorder, 0.5), Light: Transparent(tabActiveModifiedBorder, 0.5)));
         RegisterColor("tab.unfocusedActiveModifiedBorder", new ColorDefaults(Dark: Transparent(tabActiveModifiedBorder, 0.5), Light: Transparent(tabActiveModifiedBorder, 0.7)));
@@ -246,6 +252,27 @@ internal class VsCodeColorRegistry : IColorRegistry
         RegisterColor("titleBar.inactiveBackground", new ColorDefaults(Dark: Transparent(titleBarActiveBackground, 0.6), Light: Transparent(titleBarActiveBackground, 0.6)));
         RegisterColor("menubar.selectionForeground", titleBarActiveForeground);
         RegisterColor("menubar.selectionBackground", toolbarHoverBackground);
+
+        RegisterColor("editorGutter.foldingControlForeground", iconForeground);
+        RegisterColor("editor.foldPlaceholderForeground", new ColorDefaults(Dark: "#808080", Light: "#808080"));
+
+        // Terminal ANSI palette (VS Code's terminalColorRegistry defaults)
+        RegisterColor("terminal.ansiBlack", new ColorDefaults(Light: "#000000", Dark: "#000000"));
+        RegisterColor("terminal.ansiRed", new ColorDefaults(Light: "#cd3131", Dark: "#cd3131"));
+        RegisterColor("terminal.ansiGreen", new ColorDefaults(Light: "#107C10", Dark: "#0DBC79"));
+        RegisterColor("terminal.ansiYellow", new ColorDefaults(Light: "#949800", Dark: "#e5e510"));
+        RegisterColor("terminal.ansiBlue", new ColorDefaults(Light: "#0451a5", Dark: "#2472c8"));
+        RegisterColor("terminal.ansiMagenta", new ColorDefaults(Light: "#bc05bc", Dark: "#bc3fbc"));
+        RegisterColor("terminal.ansiCyan", new ColorDefaults(Light: "#0598bc", Dark: "#11a8cd"));
+        RegisterColor("terminal.ansiWhite", new ColorDefaults(Light: "#555555", Dark: "#e5e5e5"));
+        RegisterColor("terminal.ansiBrightBlack", new ColorDefaults(Light: "#666666", Dark: "#666666"));
+        RegisterColor("terminal.ansiBrightRed", new ColorDefaults(Light: "#cd3131", Dark: "#f14c4c"));
+        RegisterColor("terminal.ansiBrightGreen", new ColorDefaults(Light: "#14CE14", Dark: "#23d18b"));
+        RegisterColor("terminal.ansiBrightYellow", new ColorDefaults(Light: "#b5ba00", Dark: "#f5f543"));
+        RegisterColor("terminal.ansiBrightBlue", new ColorDefaults(Light: "#0451a5", Dark: "#3b8eea"));
+        RegisterColor("terminal.ansiBrightMagenta", new ColorDefaults(Light: "#bc05bc", Dark: "#d670d6"));
+        RegisterColor("terminal.ansiBrightCyan", new ColorDefaults(Light: "#0598bc", Dark: "#29b8db"));
+        RegisterColor("terminal.ansiBrightWhite", new ColorDefaults(Light: "#a5a5a5", Dark: "#e5e5e5"));
     }
 
     private string RegisterColor(string name) => name;

@@ -1,0 +1,32 @@
+<Solution>
+  <Folder Name="/Common/">
+    <Project Path="src/RoslynPad.BuildTasks/RoslynPad.BuildTasks.csproj" />
+    <Project Path="src/RoslynPad.Runtime/RoslynPad.Runtime.csproj" />
+    <Project Path="src/RoslynPad.Runtime.Secrets/RoslynPad.Runtime.Secrets.csproj" />
+  </Folder>
+  <Folder Name="/_Build/">
+    <File Path=".editorconfig" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Build.targets" />
+    <File Path="Directory.Packages.props" />
+    <File Path="global.json" />
+    <File Path="nuget.config" />
+  </Folder>
+  <Folder Name="/Morgania/">
+    <Project Path="src/Morgania.Editor/Morgania.Editor.csproj" />
+    <Project Path="src/Morgania.Editor.Abstractions/Morgania.Editor.Abstractions.csproj" />
+    <Project Path="src/Morgania.Demo.EditorFeatures/Morgania.Demo.EditorFeatures.csproj" />
+    <Project Path="src/Morgania.Demo/Morgania.Demo.csproj" />
+    <Project Path="src/Morgania.CodeAnalysis.EditorFeatures/Morgania.CodeAnalysis.EditorFeatures.csproj" />
+    <Project Path="src/Morgania.CodeAnalysis.Editor/Morgania.CodeAnalysis.Editor.csproj" />
+  </Folder>
+  <Folder Name="/Tests/">
+    <Project Path="tests/Morgania.BehaviorTests/Morgania.BehaviorTests.csproj" />
+    <Project Path="tests/Morgania.CompositionTests/Morgania.CompositionTests.csproj" />
+    <Project Path="tests/Morgania.ExtensionConformance/Morgania.ExtensionConformance.csproj" />
+    <Project Path="tests/Morgania.GeometryTests/Morgania.GeometryTests.csproj" />
+    <Project Path="tests/Morgania.IntellisenseTests/Morgania.IntellisenseTests.csproj" />
+  </Folder>
+  <Project Path="src/RoslynPad/RoslynPad.csproj" DefaultStartup="true" />
+  <Project Path="src/RoslynPad.Themes/RoslynPad.Themes.csproj" />
+</Solution>
